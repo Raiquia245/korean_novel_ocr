@@ -3,7 +3,10 @@ deep-translator
 mss
 pynput
 numpy
-opencv-python
-# Optional: only needed if you use the Gemini translation engine
+# Optional: only needed for the Gemini translation engine
 google-generativeai
 python-dotenv
+# Optional: only needed for the batch_ocr.py / batch_ocr_simple.py scripts
+# (the main live reader no longer requires OpenCV)
+opencv-python
+pytesseract

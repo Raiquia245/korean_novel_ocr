@@ -55,7 +55,7 @@ SOURCE_LANG = "ko"                # OCR + translate source
 TARGET_LANG = "en"                # translation target (English)
 
 # Which translation engine to use: "google" (free, no key) or "gemini" (AI).
-TRANSLATE_ENGINE = "google"
+TRANSLATE_ENGINE = "gemini"
 
 # Show results in an always-on-top overlay window (True) or just the console.
 USE_OVERLAY = True
@@ -64,8 +64,10 @@ USE_OVERLAY = True
 # The API key is read from the GEMINI_API_KEY environment variable (or a .env
 # file) — never hardcode it. Get a free key at https://aistudio.google.com/
 # Model names change fairly often; verify the current free model ID in Google
-# AI Studio and update this if needed.
-GEMINI_MODEL = "gemini-2.5-flash"
+# AI Studio and update this if needed. As of now, "gemini-2.5-flash" is no
+# longer offered to new users — the free models are the newer Flash / Flash-Lite
+# lineup. "gemini-3.1-flash-lite" has the largest free daily quota (≈500/day).
+GEMINI_MODEL = "gemini-3.1-flash-lite"
 
 # When True, the last few pages are sent to Gemini as context so character
 # names and terms stay consistent across a chapter.
@@ -89,54 +91,61 @@ def select_region():
     """
     Let the user drag a rectangle over the screen to choose the capture area.
     Returns a dict {top, left, width, height} suitable for mss, or None.
+
+    Uses a fullscreen semi-transparent Tkinter overlay (no OpenCV dependency),
+    so it works regardless of which OpenCV variant is installed.
     """
-    import cv2
+    import tkinter as tk
 
-    title = "Drag to select the text area, then press ENTER. ESC to cancel."
+    result = {}
+    root = tk.Tk()
+    root.attributes("-fullscreen", True)
+    root.attributes("-alpha", 0.25)          # see the screen underneath
+    root.configure(bg="black")
+    root.attributes("-topmost", True)
+    root.title("Drag to select the text area — release to confirm, ESC to cancel")
 
-    with mss.mss() as sct:
-        monitor = sct.monitors[1]  # primary monitor
-        shot = sct.grab(monitor)
-        img = np.array(shot)[:, :, :3]
+    canvas = tk.Canvas(root, cursor="cross", bg="gray20", highlightthickness=0)
+    canvas.pack(fill="both", expand=True)
 
-    clone = img.copy()
-    box = {}
-    drawing = {"active": False, "x0": 0, "y0": 0}
+    canvas.create_text(
+        root.winfo_screenwidth() // 2, 40,
+        text="Drag a box over the novel text — release to confirm • ESC to cancel",
+        fill="white", font=("Segoe UI", 16),
+    )
 
-    def on_mouse(event, x, y, flags, param):
-        if event == cv2.EVENT_LBUTTONDOWN:
-            drawing.update(active=True, x0=x, y0=y)
-        elif event == cv2.EVENT_MOUSEMOVE and drawing["active"]:
-            disp = clone.copy()
-            cv2.rectangle(disp, (drawing["x0"], drawing["y0"]), (x, y), (0, 255, 0), 2)
-            cv2.imshow(title, disp)
-        elif event == cv2.EVENT_LBUTTONUP:
-            drawing["active"] = False
-            box.update(
-                left=min(drawing["x0"], x) + monitor["left"],
-                top=min(drawing["y0"], y) + monitor["top"],
-                width=abs(x - drawing["x0"]),
-                height=abs(y - drawing["y0"]),
-            )
-            disp = clone.copy()
-            cv2.rectangle(disp, (drawing["x0"], drawing["y0"]), (x, y), (0, 255, 0), 2)
-            cv2.imshow(title, disp)
+    drag = {"x0": 0, "y0": 0, "rect": None}
 
-    cv2.namedWindow(title, cv2.WINDOW_NORMAL)
-    cv2.setWindowProperty(title, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-    cv2.setMouseCallback(title, on_mouse)
-    cv2.imshow(title, clone)
+    def on_press(event):
+        drag["x0"], drag["y0"] = event.x, event.y
+        drag["rect"] = canvas.create_rectangle(
+            event.x, event.y, event.x, event.y, outline="#00ff00", width=2
+        )
 
-    while True:
-        key = cv2.waitKey(1) & 0xFF
-        if key == 13 and box.get("width"):   # ENTER
-            break
-        if key == 27:                          # ESC
-            box.clear()
-            break
-    cv2.destroyAllWindows()
+    def on_move(event):
+        if drag["rect"] is not None:
+            canvas.coords(drag["rect"], drag["x0"], drag["y0"], event.x, event.y)
 
-    return box if box.get("width") else None
+    def on_release(event):
+        x0, y0 = drag["x0"], drag["y0"]
+        x1, y1 = event.x, event.y
+        left, top = min(x0, x1), min(y0, y1)
+        width, height = abs(x1 - x0), abs(y1 - y0)
+        if width > 5 and height > 5:
+            result.update(left=left, top=top, width=width, height=height)
+        root.destroy()
+
+    def on_cancel(event):
+        root.destroy()
+
+    canvas.bind("<ButtonPress-1>", on_press)
+    canvas.bind("<B1-Motion>", on_move)
+    canvas.bind("<ButtonRelease-1>", on_release)
+    root.bind("<Escape>", on_cancel)
+
+    root.mainloop()
+
+    return result if result.get("width") else None
 
 
 # ---------------------------------------------------------------------------
@@ -402,7 +411,7 @@ def main():
     reader = easyocr.Reader([SOURCE_LANG], gpu=False)
     print("Model ready.\n")
 
-    print("Step 1: select the novel text area (drag a box, then press ENTER).")
+    print("Step 1: select the novel text area (drag a box; release to confirm).")
     region = select_region()
     if not region:
         print("Cancelled.")

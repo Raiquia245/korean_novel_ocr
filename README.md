@@ -18,8 +18,8 @@ Built to read Korean web novels (e.g. a Windows reader that disables text select
 | OCR | [EasyOCR](https://github.com/JaidedAI/EasyOCR) | Korean model, downloaded once on first run. More accurate on thin on-screen Korean fonts than Tesseract. |
 | Translation | [deep-translator](https://github.com/nidhaloff/deep-translator) *or* Gemini API | Google Translate (free, no key) **or** an AI model for more natural novel prose. |
 | Screen capture | [mss](https://github.com/BoboTiG/python-mss) | Fast, cross-platform region capture. |
-| Hotkey | [pynput](https://github.com/moses-palmer/pynput) | Global F9 / ESC listener. |
-| Overlay | Tkinter (stdlib) | Always-on-top translation window. |
+| Hotkey | [pynput](https://github.com/moses-palmer/pynput) | Global F9 / F10 / ESC listener. |
+| Region select + overlay | Tkinter (stdlib) | Fullscreen drag-to-select and the always-on-top translation window. No OpenCV needed. |
 
 ## Setup
 
@@ -35,7 +35,7 @@ The first run downloads the EasyOCR Korean model (a few hundred MB), which is ca
 python novel_reader.py
 ```
 
-Then: drag to select the text area -> press **ENTER** to confirm -> press **F9** whenever you want the current page read -> **F10** when starting a different novel/chapter -> **ESC** to exit.
+Then: drag to select the text area (release to confirm) -> press **F9** whenever you want the current page read -> **F10** when starting a different novel/chapter -> **ESC** to exit.
 
 ### Settings (top of `novel_reader.py`)
 
@@ -59,8 +59,7 @@ Then: drag to select the text area -> press **ENTER** to confirm -> press **F9**
 4. In `novel_reader.py`, set `TRANSLATE_ENGINE = "gemini"`.
 
 Notes on the Gemini free tier (verify current values in Google AI Studio, as they change):
-- Free models are currently the **Flash / Flash-Lite** family; Pro models became paid-only in 2026. Update `GEMINI_MODEL` if the model ID changes.
-- Rate limits are generous for one-page-per-keypress reading (roughly 15 requests/min, ~1,500/day for Flash). The code retries automatically on rate-limit (429) errors.
+- Model IDs change often. As of now `gemini-2.5-flash` is no longer offered to new users; the code defaults to **`gemini-3.1-flash-lite`**, which has the largest free daily quota (~500 requests/day, 15 RPM) — ideal for one-page-per-keypress reading. Other free models (Gemini 3 Flash, 3.5 Flash, 2.5 Flash) work too but are capped near 20 requests/day. Check the models list in AI Studio and update `GEMINI_MODEL` if needed.
 - Chapter context is controlled by `GEMINI_USE_CONTEXT` and `GEMINI_CONTEXT_PAGES`. The tool doesn't know when you switch books, so **press F10 to clear the context** whenever you start a different novel or chapter — otherwise names/terms from the previous book can carry over.
 - **Privacy:** on the free tier, Google may use your inputs to improve its models. Fine for public novel text; don't send anything sensitive.
 
@@ -75,6 +74,7 @@ python batch_ocr_simple.py   # scans the ./extract folder
 
 ## Notes & limitations
 
+- **OpenCV is not required** for the live reader — region selection and the overlay use Tkinter (built into Python). OpenCV is only needed for the optional `batch_ocr.py` scripts. If you ever see a `cv2.error ... The function is not implemented` message, it means an OpenCV-headless build is installed; the live reader avoids that entirely.
 - **OCR accuracy** depends on font size and contrast. If results are poor, select a tighter region around just the text, or increase the reader's font size.
 - **First run is slow** while the OCR model downloads and loads; subsequent captures are fast.
 - **GPU:** the reader runs on CPU by default (`gpu=False`). If you have a CUDA GPU, set `gpu=True` in `easyocr.Reader(...)` for faster OCR.
