@@ -1,0 +1,9 @@
+easyocr
+deep-translator
+mss
+pynput
+numpy
+opencv-python
+# Optional: only needed if you use the Gemini translation engine
+google-generativeai
+python-dotenv
